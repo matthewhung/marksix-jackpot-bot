@@ -11,52 +11,45 @@ JACKPOT_THRESHOLD = 40_000_000
 logging.basicConfig(level=logging.INFO)
 
 def get_estimated_jackpot():
-    # 試多個 URL
     urls = [
-        "https://bet.hkjc.com/marksix/index.aspx",
-        "https://www.hkjc.com/marksix/index.aspx",
+        "https://bet.hkjc.com/marksix/getXML.aspx?type=lastnextdraw",
+        "https://bet.hkjc.com/marksix/getJSON.aspx?type=lastnextdraw",
     ]
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "zh-HK,zh;q=0.9,en;q=0.8",
+        "Referer": "https://bet.hkjc.com/marksix/",
     }
     for url in urls:
         try:
             print(f"Trying URL: {url}")
             resp = requests.get(url, headers=headers, timeout=20)
-            print(f"Status code: {resp.status_code}")
-            print(f"Page length: {len(resp.text)} chars")
+            print(f"Status code: {resp.status_code}, Length: {len(resp.text)}")
+            print(f"Response: {resp.text[:500]}")
             
-            soup = BeautifulSoup(resp.text, "html.parser")
-            text = soup.get_text()
-            
-            # Debug: print first 500 chars
-            print(f"Page text preview: {text[:500]}")
+            # Try JSON
+            try:
+                data = resp.json()
+                print(f"JSON  {data}")
+                # 搵 jackpot 金額
+                text = str(data)
+            except:
+                text = resp.text
             
             patterns = [
-                r'估計頭獎基金[^$\d]*\$?\s*([\d,]+)',
-                r'Estimated.*?1st.*?Prize[^$\d]*\$?\s*([\d,]+)',
-                r'Est.*?Jackpot[^$\d]*\$?\s*([\d,]+)',
+                r'[Ee]st.*?[Jj]ackpot.*?(\d[\d,]+)',
+                r'jackpotPrize.*?(\d[\d,]+)',
+                r'estimatedPrize.*?(\d[\d,]+)',
+                r'(\d{7,})',
             ]
             for p in patterns:
-                match = re.search(p, text, re.IGNORECASE | re.DOTALL)
+                match = re.search(p, text)
                 if match:
                     amount = int(match.group(1).replace(",", ""))
-                    print(f"Found jackpot via pattern: ${amount:,}")
-                    return amount
-            
-            # Fallback: find all large dollar amounts
-            amounts = re.findall(r'[\$＄]\s*([\d,]{7,})', text)
-            print(f"All large amounts found: {amounts}")
-            if amounts:
-                parsed = [int(a.replace(",", "")) for a in amounts]
-                return max(parsed)
-                
+                    if amount > 1_000_000:
+                        print(f"Found amount: ${amount:,}")
+                        return amount
         except Exception as e:
-            print(f"Error with {url}: {e}")
-            continue
-    
+            print(f"Error: {e}")
     return None
 
 def send_telegram(msg):
