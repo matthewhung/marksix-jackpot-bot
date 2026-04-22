@@ -76,4 +76,16 @@ def main():
         send_telegram("⚠️ 未能取得六合彩頭獎基金資料，請手動查閱：https://bet.hkjc.com/marksix/")
         return
     
-    p
+    print(f"Final jackpot amount: ${amount:,}")
+    
+    if amount >= JACKPOT_THRESHOLD:
+        msg = (f"🎰 <b>頭獎基金警報！</b>\n"
+               f"💰 估計頭獎基金：<b>${amount:,}</b>\n"
+               f"✅ 已超過 ${JACKPOT_THRESHOLD:,}！\n"
+               f"🔗 https://bet.hkjc.com/marksix/")
+        send_telegram(msg)
+    else:
+        print(f"${amount:,} below threshold ${JACKPOT_THRESHOLD:,}. No notification.")
+
+if __name__ == "__main__":
+    main()
