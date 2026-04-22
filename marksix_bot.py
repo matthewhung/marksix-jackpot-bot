@@ -1,84 +1,65 @@
 import requests
-from bs4 import BeautifulSoup
 import re
 import os
-import logging
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 JACKPOT_THRESHOLD = 40_000_000
 
-logging.basicConfig(level=logging.INFO)
-
 def get_estimated_jackpot():
-    urls = [
-        "https://bet.hkjc.com/marksix/getXML.aspx?type=lastnextdraw",
-        "https://bet.hkjc.com/marksix/getJSON.aspx?type=lastnextdraw",
+    # HKJC 前端真正用嘅 API
+    api_urls = [
+        "https://bet.hkjc.com/marksix/api/DrawResult/GetNextDraw",
+        "https://bet.hkjc.com/api/v1/lotto/nextDraw?gameCode=MARK6",
+        "https://info.cld.hkjc.com/graphql/query/",
     ]
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
         "Referer": "https://bet.hkjc.com/marksix/",
+        "Origin": "https://bet.hkjc.com",
     }
-    for url in urls:
+    
+    # Method 1: 試 JSON API
+    for url in api_urls:
         try:
-            print(f"Trying URL: {url}")
-            resp = requests.get(url, headers=headers, timeout=20)
-            print(f"Status code: {resp.status_code}, Length: {len(resp.text)}")
-            print(f"Response: {resp.text[:500]}")
-            
-            # Try JSON
-            try:
-                data = resp.json()
-                print(f"JSON  {data}")
-                # 搵 jackpot 金額
-                text = str(data)
-            except:
-                text = resp.text
-            
-            patterns = [
-                r'[Ee]st.*?[Jj]ackpot.*?(\d[\d,]+)',
-                r'jackpotPrize.*?(\d[\d,]+)',
-                r'estimatedPrize.*?(\d[\d,]+)',
-                r'(\d{7,})',
-            ]
-            for p in patterns:
-                match = re.search(p, text)
-                if match:
-                    amount = int(match.group(1).replace(",", ""))
-                    if amount > 1_000_000:
-                        print(f"Found amount: ${amount:,}")
+            print(f"Trying: {url}")
+            resp = requests.get(url, headers=headers, timeout=15)
+            print(f"Status: {resp.status_code}, Length: {len(resp.text)}")
+            print(f"Response preview: {resp.text[:300]}")
+            if resp.status_code == 200 and len(resp.text) > 100:
+                try:
+                    data = resp.json()
+                    print(f"JSON keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+                    text = str(data)
+                    amounts = re.findall(r'\b([4-9]\d{7,}|[1-9]\d{8,})\b', text)
+                    if amounts:
+                        amount = max(int(a) for a in amounts)
+                        print(f"Found: ${amount:,}")
                         return amount
+                except Exception as e:
+                    print(f"JSON parse error: {e}")
         except Exception as e:
             print(f"Error: {e}")
+    
     return None
 
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    try:
-        resp = requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
-        print(f"Telegram response: {resp.status_code} - {resp.text}")
-    except Exception as e:
-        print(f"Telegram error: {e}")
+    resp = requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
+    print(f"Telegram: {resp.status_code} - {resp.text}")
 
 def main():
     print("=== Mark Six Jackpot Checker ===")
     amount = get_estimated_jackpot()
-    
     if amount is None:
-        print("Failed to get jackpot amount, sending warning.")
+        print("Failed to retrieve jackpot amount.")
         send_telegram("⚠️ 未能取得六合彩頭獎基金資料，請手動查閱：https://bet.hkjc.com/marksix/")
         return
-    
-    print(f"Final jackpot amount: ${amount:,}")
-    
+    print(f"Jackpot: ${amount:,}, Threshold: ${JACKPOT_THRESHOLD:,}")
     if amount >= JACKPOT_THRESHOLD:
-        msg = (f"🎰 <b>頭獎基金警報！</b>\n"
-               f"💰 估計頭獎基金：<b>${amount:,}</b>\n"
-               f"✅ 已超過 ${JACKPOT_THRESHOLD:,}！\n"
-               f"🔗 https://bet.hkjc.com/marksix/")
-        send_telegram(msg)
+        send_telegram(f"🎰 六合彩估計頭獎基金達 <b>${amount:,}</b>！\n已超過 $40,000,000 門檻！\nhttps://bet.hkjc.com/marksix/")
     else:
-        print(f"${amount:,} below threshold ${JACKPOT_THRESHOLD:,}. No notification.")
+        print(f"Below threshold, no notification.")
 
-if __name__ == "__main__":
-    main()
+main()
