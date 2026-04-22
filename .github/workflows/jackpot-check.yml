@@ -15,6 +15,12 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Restore notification state
+        uses: actions/cache@v4
+        with:
+          path: last_notified.json
+          key: jackpot-state
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
@@ -26,3 +32,10 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
+
+      - name: Save notification state
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: last_notified.json
+          key: jackpot-state-${{ github.run_id }}
