@@ -14,24 +14,26 @@ def get_estimated_jackpot():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
-            locale="zh-HK"
+            locale="en-HK"
         )
         page = context.new_page()
-        print("Opening HKJC Mark Six page...")
-        page.goto("https://bet.hkjc.com/marksix/", timeout=30000)
+        print("Opening HKJC Mark Six page (EN)...")
+        page.goto("https://bet.hkjc.com/en/marksix", timeout=30000)
         page.wait_for_load_state("networkidle", timeout=20000)
 
         text = page.inner_text("body")
         print(f"Body text preview: {text[:500]}")
         browser.close()
 
+        # English site uses plain "$228,000,000" format
         patterns = [
-            r'估計頭獎基金[^$\d]*\$?([\d,]+)',
-            r'Est(?:imated)?\s*Jackpot[^\d$]*\$?([\d,]+)',
-            r'jackpot[^\d]*([\d,]{7,})',
+            r'[Ee]st(?:imated)?\s*[Jj]ackpot[^\d$]*\$?([\d,]+)',
+            r'[Jj]ackpot\s*[Ff]und[^\d$]*\$?([\d,]+)',
+            r'\$([\d,]{7,})',  # any $X,XXX,XXX fallback
         ]
+
         for pat in patterns:
-            m = re.search(pat, text, re.IGNORECASE)
+            m = re.search(pat, text)
             if m:
                 amount = int(m.group(1).replace(",", ""))
                 if amount >= 5_000_000:
@@ -63,17 +65,21 @@ def main():
 
     if amount is None:
         print("Failed to retrieve jackpot amount.")
-        return  # 搵唔到就靜靜地失敗，唔發 warning
+        return
 
     last_notified = load_last_notified()
     print(f"Current: ${amount:,} | Last notified: ${last_notified:,} | Threshold: ${JACKPOT_THRESHOLD:,}")
 
     if amount >= JACKPOT_THRESHOLD and amount != last_notified:
-        send_telegram(f"🎰 六合彩估計頭獎基金達 <b>${amount:,}</b>！\n已超過 $40,000,000 門檻！\nhttps://bet.hkjc.com/marksix/")
+        send_telegram(
+            f"🎰 <b>Mark Six Jackpot Alert!</b>\n"
+            f"Estimated Jackpot Fund: <b>${amount:,}</b>\n"
+            f"Threshold exceeded: ${JACKPOT_THRESHOLD:,}\n"
+            f"https://bet.hkjc.com/en/marksix"
+        )
         save_last_notified(amount)
         print(f"Notified! Saved new amount: ${amount:,}")
     elif amount < JACKPOT_THRESHOLD:
-        # 跌返落門檻以下，reset 狀態（下次超過再通知）
         save_last_notified(0)
         print("Below threshold, state reset.")
     else:
