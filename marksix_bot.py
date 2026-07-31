@@ -13,13 +13,15 @@ def get_estimated_jackpot():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             locale="en-HK"
         )
         page = context.new_page()
         print("Opening HKJC Mark Six page (EN)...")
-        page.goto("https://bet.hkjc.com/en/marksix", timeout=30000)
-        page.wait_for_load_state("networkidle", timeout=20000)
+        page.goto("https://bet.hkjc.com/en/marksix", timeout=40000, wait_until="domcontentloaded")
+        
+        # Wait specifically for main content to render instead of waiting for all network traffic to stop
+        page.wait_for_timeout(5000)
 
         text = page.inner_text("body")
         print(f"Body text preview: {text[:500]}")
