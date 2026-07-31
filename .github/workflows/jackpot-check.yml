@@ -17,16 +17,19 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Changed to actions/cache/restore to prevent duplicate post-job saving
       - name: Restore notification state
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: last_notified.json
           key: jackpot-state-${{ github.run_id }}
           restore-keys: jackpot-state-
-          save-always: true
 
+      # Added pip upgrade to eliminate the pip version warning
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Install Playwright browsers
         run: playwright install chromium --with-deps
