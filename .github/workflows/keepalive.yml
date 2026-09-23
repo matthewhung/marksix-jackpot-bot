@@ -1,0 +1,17 @@
+name: Keepalive Workflow
+
+on:
+  schedule:
+    # 每 50 日自動執行一次（避免超過 60 日冇 activity 被 disable）
+    - cron: '0 0 */50 * *'
+  workflow_dispatch: # 支援手動觸發
+
+jobs:
+  keepalive:
+    name: Keepalive Workflow
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gautamkrishnar/keepalive-workflow@v2
